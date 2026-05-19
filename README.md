@@ -1,105 +1,312 @@
 # Translation Management Service
 
-Full-stack translation management test project built with a Laravel API backend and an optional React/Vite frontend console.
+API-driven translation management service built for the Laravel Senior Developer code test.
 
-The **Laravel backend** is the primary deliverable for the test task. The frontend is included only as a lightweight demonstration client for testing the API.
+The primary deliverable is the Laravel backend in `backend/`. A React/Vite frontend is included only as an optional API demonstration client.
+
+## Features
+
+- Store translations for multiple locales such as `en`, `fr`, and `es`
+- Add new locales without schema changes
+- Tag translation keys by context, for example `mobile`, `desktop`, and `web`
+- Create, update, view, delete, and search translations
+- Search by locale, tag, key, content, and generic query text
+- Streamed JSON export endpoint for frontend applications
+- First-party bearer-token authentication with token abilities
+- Paginated normal API endpoints
+- 100k+ record population command for scalability testing
+- MySQL setup
+- Docker setup
+- OpenAPI documentation
+- Unit, feature, command, and performance-oriented tests
+- Test coverage above 95%
 
 ## Project Structure
 
 ```text
 TranslationManagementService/
-├── backend/              # Laravel API backend
-├── frontend/             # Optional React/Vite frontend console
-├── docker-compose.yml    # Docker stack for API, frontend, and MySQL
-└── README.md             # Project overview
+|-- backend/              Laravel API backend
+|-- frontend/             Optional React/Vite demo console
+|-- docker-compose.yml    Optional Docker stack
+`-- README.md             Main evaluator guide
+```
 
-Main Deliverable
+Backend documentation: `backend/README.md`  
+OpenAPI spec: `backend/docs/openapi.yaml`
 
-The backend API is located in:
-backend/
+## Requirements
 
-Backend documentation:
-backend/README.md
+- PHP 8.3+
+- Composer
+- MySQL 8 or MariaDB
+- Node.js 20+ only if running the optional frontend
+- Docker only if using the optional Docker setup
 
-OpenAPI documentation:
-backend/docs/openapi.yaml
+## Backend Setup Without Docker
 
-Features
-Laravel API for multilingual translation management
-Locale support for languages such as en, fr, and es
-Context tags such as mobile, desktop, and web
-Translation CRUD endpoints
-Search by locale, tag, key, and content
-Streamed JSON export endpoint for frontend applications
-First-party bearer-token authentication
-Ability-scoped and revocable API tokens
-100k+ record population command
-Docker setup
-OpenAPI documentation
-Test coverage above 95%
-Optional React/Vite frontend console
+Run these commands from the project root.
 
-Quick Start Without Docker
-Backend
+```bash
 cd backend
 composer install
 cp .env.example .env
 php artisan key:generate
+```
+
+Configure MySQL in `backend/.env`:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=translation_management_service
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+Create the database if it does not exist:
+
+```bash
+mysql -uroot -e "CREATE DATABASE IF NOT EXISTS translation_management_service CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+Run migrations and seed the default user/locales/tags:
+
+```bash
 php artisan migrate --seed
+```
+
+Start the backend API:
+
+```bash
 php artisan serve --host=127.0.0.1 --port=8000
+```
 
-Default backend URL:
+Backend URL:
+
+```text
 http://127.0.0.1:8000
+```
 
-Default API base URL:
+API base URL:
+
+```text
 http://127.0.0.1:8000/api/v1
+```
 
 Default seeded user:
+
+```text
 Email: test@example.com
 Password: password
+```
 
-Frontend
-cd frontend
-npm install
-npm run dev -- --host 127.0.0.1 --port 5173
+## First API Test
 
-Frontend URL:
-http://127.0.0.1:5173
+Issue an API token:
 
-Docker Quick Start
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"test@example.com\",\"password\":\"password\",\"token_name\":\"local-test\",\"abilities\":[\"*\"]}"
+```
+
+Copy the returned `plain_text_token`, then call a protected endpoint:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/translations \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Create a translation:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/translations \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"key\":\"home.hero.title\",\"locale\":\"en\",\"locale_name\":\"English\",\"value\":\"Welcome back\",\"tags\":[\"web\",\"mobile\"]}"
+```
+
+Search translations:
+
+```bash
+curl "http://127.0.0.1:8000/api/v1/translations/search?locale=en&tag=web&key=home" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Export frontend JSON:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/translations/export/en \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Main Backend Endpoints
+
+- `GET /api/v1/health`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/tokens`
+- `DELETE /api/v1/auth/tokens/{id}`
+- `GET /api/v1/me`
+- `GET /api/v1/translations`
+- `POST /api/v1/translations`
+- `GET /api/v1/translations/search`
+- `GET /api/v1/translations/export/{locale}`
+- `GET /api/v1/translations/{id}`
+- `PATCH /api/v1/translations/{id}`
+- `DELETE /api/v1/translations/{id}`
+
+All normal list endpoints are paginated. Use `per_page` up to `100`.
+
+## Testing
+
+From `backend/`:
+
+```bash
+php artisan test
+vendor/bin/pint --test
+```
+
+Coverage:
+
+```bash
+php artisan test --coverage
+```
+
+Latest local coverage result:
+
+```text
+53 tests passed
+214 assertions
+97.7% line coverage
+```
+
+The test suite includes:
+
+- Unit tests
+- Feature/API tests
+- Authentication and authorization tests
+- CRUD tests
+- Search tests
+- Export tests
+- Command tests
+- Performance-oriented tests
+- Error-handling tests
+
+## 100k+ Scalability Test
+
+From `backend/`:
+
+```bash
+php artisan translations:populate 100000 --chunk=1000
+```
+
+Optional locales and tags:
+
+```bash
+php artisan translations:populate 100000 --locales=en,fr,es --tags=mobile,desktop,web
+```
+
+Then test the export endpoint:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/translations/export/en \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Optional Frontend Demo
+
+The frontend is not required for the backend code test, but it can be used to test the API visually.
 
 From the project root:
+
+```bash
+cd frontend
+npm install
+```
+
+Ensure `frontend/.env` contains:
+
+```env
+VITE_API_BASE_URL=http://localhost:8000/api
+```
+
+Run it:
+
+```bash
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Frontend URL:
+
+```text
+http://127.0.0.1:5173
+```
+
+## Optional Docker Setup
+
+From the project root:
+
+```bash
 docker compose up --build
+```
 
 Docker services:
+
+```text
 API:      http://localhost:8000
 Frontend: http://localhost:5173
 MySQL:    127.0.0.1:3306
 Database: translation_management_service
 Username: root
 Password: empty
+```
 
-The Docker stack uses the committed Docker environment examples and does not require local .env files to be changed.
+Run backend tests inside Docker:
 
-Backend Test Commands
+```bash
+docker compose exec backend php artisan test
+docker compose exec backend php artisan test --coverage
+```
 
-From the backend directory:
+Populate data inside Docker:
 
-php artisan test
-php artisan test --coverage
-vendor/bin/pint --test
+```bash
+docker compose exec backend php artisan translations:populate 100000 --chunk=1000
+```
 
-Latest local coverage result:
-53 tests passed
-214 assertions
-97.7% line coverage
+## Design Choices
 
-100k+ Scalability Test
+- The schema separates `locales`, `translation_keys`, `translations`, `tags`, and `translation_key_tag`.
+- `translation_key_id + locale_id` is unique to prevent duplicate translations for the same key and locale.
+- Indexes support lookup by locale, key, publication state, tag pivot, and hash.
+- Controllers are thin and delegate validation, persistence, search, and response formatting.
+- Form Request classes handle validation.
+- Services own business operations, transactions, and logging.
+- Repositories own database write details.
+- Query/export classes own read-heavy operations.
+- Resources format API responses.
+- Normal list endpoints use pagination to avoid huge responses.
+- The export endpoint streams JSON to reduce memory pressure on large datasets.
+- API tokens are stored as SHA-256 hashes and can be ability-scoped and revoked.
+- Write operations use `DB::transaction(..., 3)` where consistency matters.
+- Structured logs capture success, validation/security rejections, and failures.
+- API responses use a consistent `success`, `message`, `data` or `errors` shape.
+- Export responses use `Cache-Control: no-store` so frontend applications always receive fresh translations.
 
-From the backend directory:
-php artisan translations:populate 100000 --chunk=1000
+## Troubleshooting
 
-API Documentation
+If MySQL connection fails, confirm MySQL is running and the database exists:
 
-OpenAPI spec:
-backend/docs/openapi.yaml
+```bash
+mysql -uroot -e "SHOW DATABASES;"
+```
+
+If tests are slow under coverage, that is expected because Xdebug instruments execution. Performance timing assertions are active during normal tests and skipped only during coverage mode.
+
+If frontend requests fail, confirm:
+
+- Backend is running on `http://127.0.0.1:8000`
+- `frontend/.env` uses `VITE_API_BASE_URL=http://localhost:8000/api`
+- You have logged in and are using a valid token
