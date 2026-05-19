@@ -1,0 +1,435 @@
+openapi: 3.1.0
+info:
+  title: Translation Management Service API
+  version: 1.0.0
+  description: API-first translation management service with token authentication, CRUD, search, and streamed JSON export.
+servers:
+  - url: http://localhost:8000/api/v1
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      security: []
+      summary: Health check
+      responses:
+        '200':
+          description: Service status
+  /auth/login:
+    post:
+      security: []
+      summary: Issue an API bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          description: Token issued. The plain text token is returned only once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /auth/logout:
+    post:
+      summary: Revoke current bearer token
+      responses:
+        '200':
+          description: Current token revoked
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+  /auth/tokens:
+    get:
+      summary: List current user's API tokens
+      description: Requires `tokens:read` or `*`.
+      responses:
+        '200':
+          description: Token collection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiToken'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /auth/tokens/{id}:
+    delete:
+      summary: Revoke one owned token
+      description: Requires `tokens:write` or `*`.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Token revoked
+        '404':
+          description: Token not found or not owned by the user
+  /me:
+    get:
+      summary: Return authenticated user and token metadata
+      responses:
+        '200':
+          description: Authenticated identity
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+  /translations:
+    get:
+      summary: List translations
+      description: Requires `translations:read` or `*`.
+      parameters:
+        - $ref: '#/components/parameters/Locale'
+        - $ref: '#/components/parameters/Tag'
+        - $ref: '#/components/parameters/Tags'
+        - $ref: '#/components/parameters/Key'
+        - $ref: '#/components/parameters/Content'
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/IsPublished'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          $ref: '#/components/responses/TranslationCollection'
+    post:
+      summary: Create a translation
+      description: Requires `translations:write` or `*`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslationWriteRequest'
+      responses:
+        '201':
+          description: Translation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /translations/search:
+    get:
+      summary: Search translations by locale, tag, key, or content
+      description: Same filters as `/translations`; requires `translations:read` or `*`.
+      parameters:
+        - $ref: '#/components/parameters/Locale'
+        - $ref: '#/components/parameters/Tag'
+        - $ref: '#/components/parameters/Tags'
+        - $ref: '#/components/parameters/Key'
+        - $ref: '#/components/parameters/Content'
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/IsPublished'
+        - name: match_all_tags
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          $ref: '#/components/responses/TranslationCollection'
+  /translations/export/{locale}:
+    get:
+      summary: Stream frontend JSON export for one locale
+      description: Requires `translations:export` or `*`. Returns fresh published translations on every request.
+      parameters:
+        - name: locale
+          in: path
+          required: true
+          schema:
+            type: string
+            example: en
+        - $ref: '#/components/parameters/Tag'
+        - $ref: '#/components/parameters/Tags'
+      responses:
+        '200':
+          description: Locale export
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-store, max-age=0
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationExport'
+  /translations/{id}:
+    get:
+      summary: Show translation
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Translation resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+    patch:
+      summary: Update translation
+      description: Requires `translations:write` or `*`.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslationWriteRequest'
+      responses:
+        '200':
+          description: Translation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+    delete:
+      summary: Delete translation
+      description: Requires `translations:write` or `*`.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Translation deleted
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    Locale:
+      name: locale
+      in: query
+      schema:
+        type: string
+        example: en
+    Tag:
+      name: tag
+      in: query
+      schema:
+        type: string
+        example: web
+    Tags:
+      name: tags
+      in: query
+      schema:
+        type: string
+        example: web,mobile
+    Key:
+      name: key
+      in: query
+      schema:
+        type: string
+        example: home.hero
+    Content:
+      name: content
+      in: query
+      schema:
+        type: string
+        example: Welcome
+    Query:
+      name: q
+      in: query
+      schema:
+        type: string
+        example: save
+    IsPublished:
+      name: is_published
+      in: query
+      schema:
+        type: boolean
+    PerPage:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 15
+  responses:
+    Unauthenticated:
+      description: Missing, expired, revoked, or invalid token
+    Forbidden:
+      description: Token does not have the required ability
+    ValidationError:
+      description: Validation failed
+    TranslationCollection:
+      description: Paginated translation collection
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Translation'
+              links:
+                type: object
+              meta:
+                type: object
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: test@example.com
+        password:
+          type: string
+          example: password
+        token_name:
+          type: string
+          example: frontend-console
+        abilities:
+          type: array
+          items:
+            type: string
+          example:
+            - '*'
+        expires_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    LoginResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            token_type:
+              type: string
+              example: Bearer
+            plain_text_token:
+              type: string
+            token:
+              $ref: '#/components/schemas/ApiToken'
+            user:
+              type: object
+    ApiToken:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        abilities:
+          type: array
+          items:
+            type: string
+        last_used_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        expires_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        revoked_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    TranslationWriteRequest:
+      type: object
+      required:
+        - key
+        - locale
+        - value
+      properties:
+        key:
+          type: string
+          example: home.hero.title
+        description:
+          type:
+            - string
+            - 'null'
+        locale:
+          type: string
+          example: en
+        locale_name:
+          type: string
+          example: English
+        value:
+          type: string
+          example: Welcome back
+        tags:
+          type: array
+          items:
+            type: string
+          example:
+            - web
+            - mobile
+        is_published:
+          type: boolean
+          default: true
+    TranslationResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Translation'
+    Translation:
+      type: object
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        description:
+          type:
+            - string
+            - 'null'
+        locale:
+          type: object
+          properties:
+            code:
+              type: string
+            name:
+              type: string
+        value:
+          type: string
+        value_hash:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        is_published:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TranslationExport:
+      type: object
+      properties:
+        locale:
+          type: string
+          example: en
+        generated_at:
+          type: string
+          format: date-time
+        translations:
+          type: object
+          additionalProperties:
+            type: string
